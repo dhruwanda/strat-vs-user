@@ -21,13 +21,11 @@ st.set_page_config(page_title="The strategy vs you", page_icon="⚖️",
                    layout="centered")
 st.markdown("""
 <style>
-  .stApp,
-  [data-testid="stAppViewContainer"],
-  [data-testid="stHeader"] {
-      background-color: white;
+  .stApp {
+    background-color: white;
   }
   
-  [data-testid="stSidebar"] {
+  [data-testid="stAppViewContainer"] {
       background-color: white;
   }
   .block-container {max-width: 860px; padding-top: 2.2rem;}
