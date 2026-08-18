@@ -1,0 +1,7 @@
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
+prices_cache.csv
+tradebook*.csv
+pnl*.xlsx
+dividends*.csv
