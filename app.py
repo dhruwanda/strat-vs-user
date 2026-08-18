@@ -21,6 +21,15 @@ st.set_page_config(page_title="The strategy vs you", page_icon="⚖️",
                    layout="centered")
 st.markdown("""
 <style>
+  .stApp,
+  [data-testid="stAppViewContainer"],
+  [data-testid="stHeader"] {
+      background-color: white;
+  }
+  
+  [data-testid="stSidebar"] {
+      background-color: white;
+  }
   .block-container {max-width: 860px; padding-top: 2.2rem;}
   h1, h2, h3 {font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.01em;}
   h1 {font-size: 2.1rem;}
