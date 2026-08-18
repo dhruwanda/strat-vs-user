@@ -297,6 +297,20 @@ with p2:
         st.info("Upload prices_cache.csv to split the gap into price and "
                 "quantity differences. Without it, everything beyond dividends "
                 "stays unreconciled.")
+        need = PD.required_lookups(res, res["index_values"],
+                                   res["strategy_index"]["date"].iloc[-1])
+        plan = {"symbols": sorted(need["symbol"].unique().tolist()),
+                "dates": sorted({d.strftime("%Y-%m-%d") for d in need["date"]}),
+                "note": "exactly the trading days this analysis reads: model "
+                        "reference dates, your trade dates and the valuation "
+                        "date"}
+        st.download_button(
+            f"Download price_plan.json ({len(plan['symbols'])} symbols, "
+            f"{len(plan['dates'])} days)", json.dumps(plan, indent=1),
+            file_name="price_plan.json", mime="application/json")
+        st.markdown('<p class="quiet">Run fetch_prices.py with this plan on '
+                    'your own machine, then upload the prices_cache.csv it '
+                    'writes.</p>', unsafe_allow_html=True)
     else:
         st.markdown("### Which stocks moved the gap")
         bs = out["implementation"]["by_stock"].copy()

@@ -1,4 +1,4 @@
-# The strategy vs the user
+# The strategy vs you
 
 Upload a smallcase timeline export and Zerodha statements; get a deterministic
 answer to "how did the strategy perform, how did MY implementation perform,
