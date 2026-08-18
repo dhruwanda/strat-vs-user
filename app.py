@@ -16,7 +16,7 @@ import requests
 import streamlit as st
 
 from smallcase_attribution import run, Config
-from smallcase_attribution import price_data as PD, v2
+from smallcase_attribution import price_data as PD, v2, nse
 
 st.set_page_config(page_title="Model vs you", page_icon="◐", layout="centered")
 st.markdown("""
@@ -73,15 +73,38 @@ def _materialise(blobs):
 
 
 @st.cache_resource(show_spinner=False, max_entries=2)
-def analyse(_blobs, subscription, demo, key):
+def base_analysis(_blobs, subscription, demo, key):
+    """Everything that needs no market data. Page 1 is complete after this."""
     cfg = Config(subscription_fee=float(subscription or 0.0),
                  basket_min_symbols=4 if demo else 5)
     with _materialise(_blobs) as p:
         res = run(p["timeline"], p["tradebook"], p["pnl"], cfg, {},
                   dividends_path=p["dividends"])
-        out = (v2.run_gap_decomposition(res, PD.PriceStore.from_csv(p["prices"]),
-                                        cfg) if p["prices"] else None)
-    return res, out
+        uploaded = (pd.read_csv(p["prices"]) if p["prices"] else None)
+    return res, cfg, uploaded
+
+
+@st.cache_resource(show_spinner=False, max_entries=2)
+def fetch_prices_for(_need, key):
+    """Try NSE ourselves. Only the days the analysis reads are requested."""
+    bar = st.progress(0.0, text="Fetching prices…")
+    try:
+        px, failed = nse.fetch(
+            sorted({d for d in _need["date"]}),
+            sorted(_need["symbol"].unique()),
+            progress=lambda i, n: bar.progress(
+                i / n, text=f"Fetching prices… day {i} of {n}"))
+    except Exception:  # noqa: BLE001
+        px, failed = pd.DataFrame(), list(_need["date"].unique())
+    finally:
+        bar.empty()
+    return px, failed
+
+
+def attribution_for(res, cfg, prices_df):
+    if prices_df is None or not len(prices_df):
+        return None
+    return v2.run_gap_decomposition(res, PD.PriceStore(prices_df), cfg)
 
 
 def _read(upload):
@@ -205,8 +228,8 @@ if st.session_state.job is None:
         f_pl = st.file_uploader("Zerodha P&L (.xlsx)", type=["xlsx"])
     with c2:
         f_dv = st.file_uploader("Dividend statement — optional", type=["csv", "xlsx"])
-        f_px = st.file_uploader("prices_cache.csv — optional, needed to explain "
-                                "the gap", type=["csv"])
+        f_px = st.file_uploader("prices_cache.csv — optional, only if the app "
+                                "can't fetch prices itself", type=["csv"])
         sub = st.number_input("smallcase subscription paid (₹)", min_value=0.0,
                               value=0.0, step=500.0)
     b1, b2 = st.columns(2)
@@ -236,13 +259,25 @@ if st.session_state.job is None:
 J = st.session_state.job
 with st.spinner("Reconstructing…"):
     try:
-        res, out = analyse(J["blobs"], J["sub"], J["demo"], J["key"])
+        res, cfg, uploaded_px = base_analysis(J["blobs"], J["sub"], J["demo"],
+                                              J["key"])
     except Exception as ex:  # noqa: BLE001
         st.error(f"The engine could not process these files: {ex}")
         if st.button("Start over"):
             st.session_state.job = None
             st.rerun()
         st.stop()
+
+need = PD.required_lookups(res, res["index_values"],
+                           res["strategy_index"]["date"].iloc[-1])
+price_source, fetch_failed = None, []
+if uploaded_px is not None:
+    prices_df, price_source = uploaded_px, "uploaded"
+else:
+    prices_df, fetch_failed = fetch_prices_for(need, J["key"])
+    if len(prices_df):
+        price_source = "fetched"
+out = attribution_for(res, cfg, prices_df)
 
 g = v2.gap_reconciliation(res, out)
 imp = res["implementation"]
@@ -294,24 +329,43 @@ with p2:
         columns={"item": "", "note": "What it means"}),
         hide_index=True, use_container_width=True)
     if out is None:
-        st.info("Upload prices_cache.csv to split the gap into price and "
-                "quantity differences. Without it, everything beyond dividends "
-                "stays unreconciled.")
-        need = PD.required_lookups(res, res["index_values"],
-                                   res["strategy_index"]["date"].iloc[-1])
+        st.warning("Price differences and quantity differences can't be shown: "
+                   "the exchange's price archive didn't respond to this app. "
+                   "Everything above, and all of Portfolio details, is "
+                   "unaffected.")
         plan = {"symbols": sorted(need["symbol"].unique().tolist()),
                 "dates": sorted({d.strftime("%Y-%m-%d") for d in need["date"]}),
                 "note": "exactly the trading days this analysis reads: model "
                         "reference dates, your trade dates and the valuation "
                         "date"}
-        st.download_button(
-            f"Download price_plan.json ({len(plan['symbols'])} symbols, "
+        d1, d2 = st.columns(2)
+        d1.download_button(
+            f"price_plan.json ({len(plan['symbols'])} symbols, "
             f"{len(plan['dates'])} days)", json.dumps(plan, indent=1),
             file_name="price_plan.json", mime="application/json")
-        st.markdown('<p class="quiet">Run fetch_prices.py with this plan on '
-                    'your own machine, then upload the prices_cache.csv it '
-                    'writes.</p>', unsafe_allow_html=True)
+        _fetch = os.path.join(os.path.dirname(__file__), "fetch_prices.py")
+        if os.path.exists(_fetch):
+            d2.download_button("fetch_prices.py", open(_fetch, "rb").read(),
+                               file_name="fetch_prices.py", mime="text/x-python")
+        st.markdown('<p class="quiet">To fill this in yourself: put both files '
+                    'in one folder with the project, run <code>pip install '
+                    'pandas requests</code> then <code>python '
+                    'fetch_prices.py</code>, and upload the prices_cache.csv it '
+                    f'writes — {len(plan["dates"])} trading days, about a '
+                    'minute.</p>', unsafe_allow_html=True)
     else:
+        if price_source == "fetched":
+            st.markdown('<p class="quiet">Prices for the '
+                        f'{need["date"].nunique()} trading days this analysis '
+                        'reads were fetched from the exchange archive.</p>',
+                        unsafe_allow_html=True)
+        if fetch_failed:
+            st.markdown('<p class="quiet">Could not retrieve: '
+                        + ", ".join(str(pd.Timestamp(d).date())
+                                    for d in fetch_failed[:6])
+                        + ('…' if len(fetch_failed) > 6 else '')
+                        + '. Legs on those dates are excluded and shown in the '
+                          'unreconciled line.</p>', unsafe_allow_html=True)
         st.markdown("### Which stocks moved the gap")
         bs = out["implementation"]["by_stock"].copy()
         bs["pp"] = 100.0 * bs["implementation_price_effect"] / g["denominator"]
