@@ -94,8 +94,13 @@ def _actual_legs(sc_trades: pd.DataFrame) -> pd.DataFrame:
 
 
 def attribute_implementation(rec_lines: pd.DataFrame, sc_trades: pd.DataFrame,
-                             events: list, store, cfg) -> dict:
-    cal = sorted(store.prices["date"].unique())
+                             events: list, store, cfg,
+                             calendar: list | None = None) -> dict:
+    # The trading calendar comes from the smallcase index timeline, which lists
+    # every trading day. Deriving it from the price file would silently shift
+    # T1 whenever the price file is sparse.
+    cal = sorted(calendar) if calendar is not None else \
+        sorted(store.prices["date"].unique())
 
     def cal_next(d):
         c = [x for x in cal if x > pd.Timestamp(d)]
@@ -275,7 +280,7 @@ def attribute_implementation(rec_lines: pd.DataFrame, sc_trades: pd.DataFrame,
 def rebalance_timeline(index_values, constituents, events, store, cfg,
                        start) -> pd.DataFrame:
     """T0, effective date, T1, price conventions and investor application."""
-    cal = sorted(store.prices["date"].unique())
+    cal = sorted(index_values["date"].unique())
 
     def cal_next(d):
         c = [x for x in cal if x > pd.Timestamp(d)]

@@ -53,6 +53,54 @@ def plan_requests(events: list, index_values: pd.DataFrame,
     return pd.DataFrame(rows)
 
 
+def required_lookups(v1: dict, index_values: pd.DataFrame,
+                     valuation_date: pd.Timestamp) -> pd.DataFrame:
+    """
+    Every (symbol, date) the implementation attribution actually reads. Both
+    files determine this exactly - nothing is guessed and no daily history is
+    needed:
+
+      * model reference price
+          - rebalance legs: T1, the first trading day after the flagged model
+            rebalance date (OHLC average)
+          - invest legs: the event date itself (close)
+      * snap-rule range test: the actual trade date's low and high, for the
+        traded symbol (this is what absorbs modified/rounded quantities)
+      * terminal valuation: the valuation date's close for symbols still held
+
+    Actual fill prices come from the tradebook, so no market data is needed for
+    them. Deferred legs executed days after an event are covered because every
+    actual trade date is included by construction.
+    """
+    cal = list(index_values["date"])
+
+    def t1_of(d):
+        after = [x for x in cal if x > pd.Timestamp(d)]
+        return after[0] if after else None
+
+    rows = []
+    for e in v1["events"]:
+        syms = set(e["buy_qty"]) | set(e["sell_qty"])
+        if e["kind"] == "invest":
+            for s in syms:
+                rows.append((s, e["date"], "model reference (invest close)"))
+        else:
+            t1 = t1_of(e.get("model_rebalance_date"))
+            for s in syms:
+                if t1 is not None:
+                    rows.append((s, t1, "model reference (rebalance T1 OHLC)"))
+    for _, t in v1["smallcase_trades"].iterrows():
+        rows.append((t["symbol"], t["trade_date"],
+                     "snap-rule range test on the trade date"))
+    for s in v1["positions"]["symbol"]:
+        rows.append((s, valuation_date, "terminal valuation close"))
+
+    df = pd.DataFrame(rows, columns=["symbol", "date", "purpose"])
+    df["date"] = pd.to_datetime(df["date"]).dt.normalize()
+    return (df.drop_duplicates(["symbol", "date"])
+            .sort_values(["symbol", "date"]).reset_index(drop=True))
+
+
 # ---------------------------------------------------------------------------
 # providers
 # ---------------------------------------------------------------------------
@@ -132,6 +180,26 @@ class PriceStore:
         self.prices.to_csv(path, index=False)
         if actions_path is not None:
             self.actions.to_csv(actions_path, index=False)
+
+    def restrict_to_calendar(self, calendar) -> dict:
+        """
+        Drop price rows on dates the strategy index does not trade on.
+
+        NSE's archive serves the PREVIOUS session's file for a holiday, so a
+        date-range fetch silently collects stale duplicate days. Using one as a
+        model reference date would price a transaction at the wrong session.
+        The index timeline lists exactly the days the market traded, so it is
+        the authority. Returns a report of what was dropped.
+        """
+        keep = set(pd.to_datetime(pd.Series(list(calendar))).dt.normalize())
+        before = len(self.prices)
+        dropped = self.prices[~self.prices["date"].isin(keep)]
+        self.prices = self.prices[self.prices["date"].isin(keep)]
+        self._by_sym = {s: g.set_index("date")
+                        for s, g in self.prices.groupby("symbol")}
+        return dict(rows_before=before, rows_after=len(self.prices),
+                    dates_dropped=sorted(str(d.date())
+                                         for d in dropped["date"].unique()))
 
     def has(self, symbol: str) -> bool:
         return symbol in self._by_sym
