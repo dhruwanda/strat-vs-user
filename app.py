@@ -341,9 +341,11 @@ with p2:
     c = g["contributors"]
     show = c.assign(**{"Contribution": c["pp"].map(_pp),
                        "₹": c["rupees"].map(lambda v: _rs(v))})
-    st.dataframe(show[["item", "Contribution", "₹", "note"]].rename(
-        columns={"item": "", "note": "What it means"}),
-        hide_index=True, use_container_width=True)
+    show = show[["item", "Contribution", "₹", "note"]]
+    show.loc[len(show)] = ["Total", _pp(c["pp"].sum()),
+                           _rs(c["rupees"].sum()), ""]
+    st.dataframe(show.rename(columns={"item": "", "note": "What it means"}),
+                 hide_index=True, use_container_width=True)
     if out is None:
         st.warning("Price differences and quantity differences can't be shown: "
                    "the exchange's price archive didn't respond to this app. "
