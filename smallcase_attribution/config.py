@@ -138,7 +138,7 @@ class Config:
     valuation_date: Optional[str] = None
     """Date the 'current' prices represent. Informational only."""
 
-    # ---- v2: gap decomposition ----------------------------------------
+    # ---- model-vs-you comparison ---------------------------------------
     model_invest_price_field: str = "close"
     """Model book's reference for invest events (the strategy's EOD basis)."""
 
@@ -153,14 +153,13 @@ class Config:
     """The engine establishes realised gains/losses, term and asset class; it
     does NOT apply tax rates by default. Enable only with rates you supply."""
 
-    subscription_fee: float = 10000.0
-    """Manager subscription for the analysis period. CONFIGURED PLACEHOLDER -
-    the eventual product takes this from the user / actual invoices."""
+    subscription_fee: float = 0.0
+    """Manager subscription paid over the analysis period. Supplied by the
+    user; there is no sensible default, so it is zero until stated."""
 
     dividends_override: Optional[float] = None
     """Dividends received, if known from outside the broker files (e.g. the
     smallcase page). Used when no dividend report file is supplied. Kept
     strictly out of the execution/timing attribution."""
 
-    yahoo_symbol_overrides: dict = field(default_factory=dict)
-    """broker symbol -> Yahoo symbol, where 'SYMBOL.NS' is not correct."""
+

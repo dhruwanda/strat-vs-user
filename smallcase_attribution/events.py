@@ -138,9 +138,13 @@ def detect_events(trades: pd.DataFrame, constituents: pd.DataFrame,
         exited = {s for s in sell if abs(after.get(s, 0.0)) <= 1e-9}
 
         kind = "invest" if not sell else ("exit" if not buy else "rebalance")
-        # distance to the nearest model rebalance date at or before this trade
+        # nearest model rebalance date at or before this trade
         past = [d for d in reb_dates if d <= day]
         near = max(past) if past else None
+        # if a FURTHER rebalance was flagged between the one being applied and
+        # the trade date, the pairing is ambiguous: say so rather than assume
+        skipped = sorted(d for d in reb_dates
+                         if near is not None and near < d <= day)
 
         events.append(dict(
             event_id=gi + 1, ts=t0, date=day, legs=list(g), kind=kind,
@@ -158,6 +162,7 @@ def detect_events(trades: pd.DataFrame, constituents: pd.DataFrame,
             fee_on_date=day in fee_dates,
             model_rebalance_date=near,
             lag_days=(day - near).days if near is not None else None,
+            rebalance_flags_skipped=skipped,
             n_symbols=int(sub["symbol"].nunique()),
         ))
         held = {k: v for k, v in after.items() if v > 1e-9}

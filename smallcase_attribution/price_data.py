@@ -53,7 +53,7 @@ def plan_requests(events: list, index_values: pd.DataFrame,
     return pd.DataFrame(rows)
 
 
-def required_lookups(v1: dict, index_values: pd.DataFrame,
+def required_lookups(analysis: dict, index_values: pd.DataFrame,
                      valuation_date: pd.Timestamp) -> pd.DataFrame:
     """
     Every (symbol, date) the implementation attribution actually reads. Both
@@ -79,8 +79,11 @@ def required_lookups(v1: dict, index_values: pd.DataFrame,
         return after[0] if after else None
 
     rows = []
-    for e in v1["events"]:
-        syms = set(e["buy_qty"]) | set(e["sell_qty"])
+    for e in analysis["events"]:
+        # traded legs AND everything held at that moment: the model share book
+        # values the whole portfolio on the reference date to size the trades
+        syms = (set(e["buy_qty"]) | set(e["sell_qty"])
+                | set(e.get("held_before", {})) | set(e.get("held_after", {})))
         if e["kind"] == "invest":
             for s in syms:
                 rows.append((s, e["date"], "model reference (invest close)"))
@@ -89,10 +92,10 @@ def required_lookups(v1: dict, index_values: pd.DataFrame,
             for s in syms:
                 if t1 is not None:
                     rows.append((s, t1, "model reference (rebalance T1 OHLC)"))
-    for _, t in v1["smallcase_trades"].iterrows():
+    for _, t in analysis["smallcase_trades"].iterrows():
         rows.append((t["symbol"], t["trade_date"],
                      "snap-rule range test on the trade date"))
-    for s in v1["positions"]["symbol"]:
+    for s in analysis["positions"]["symbol"]:
         rows.append((s, valuation_date, "terminal valuation close"))
 
     df = pd.DataFrame(rows, columns=["symbol", "date", "purpose"])

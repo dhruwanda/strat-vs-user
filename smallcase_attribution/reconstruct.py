@@ -190,6 +190,7 @@ def reconstruct_all(events: list, mapping: dict, cfg) -> tuple:
             net_cash=e["buy_value"] - e["sell_value"],
             smallcase_fee_on_date=e["fee_on_date"],
             model_rebalance_date=e["model_rebalance_date"], lag_days=e["lag_days"],
+            ambiguous_rebalance_pairing=bool(e.get("rebalance_flags_skipped")),
             reconstruction_basis=basis, lines_reconstructible=n,
             lines_not_reconstructible=n_bad, lines_consistent=ok,
             pct_lines_consistent=(ok / n if n else np.nan),
