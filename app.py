@@ -403,26 +403,30 @@ with p2:
 
         st.markdown("### When the gap opened up")
         ev = gap.by_event(res, out)
+        ev["Date"] = ev["date"].dt.strftime("%d %b %Y")
+        tips = [alt.Tooltip("Date:N", title="Date"),
+                alt.Tooltip("label:N", title="Event"),
+                alt.Tooltip("applied:N", title="Timing"),
+                alt.Tooltip("implementation_price_effect:Q",
+                            title="This event ₹", format=",.0f"),
+                alt.Tooltip("pp:Q", title="This event pp", format="+.2f"),
+                alt.Tooltip("cumulative_pp:Q", title="Running total pp",
+                            format="+.2f")]
         base = alt.Chart(ev).encode(
-            x=alt.X("date:T", title=None, axis=alt.Axis(grid=False)))
-        bars = base.mark_bar(size=16, opacity=.45).encode(
-            y=alt.Y("pp:Q", title="percentage points",
-                    axis=alt.Axis(grid=True, gridColor="#f0efe9")),
-            color=alt.condition(alt.datum.pp >= 0, alt.value(GREEN), alt.value(RED)),
-            tooltip=[alt.Tooltip("date:T", title="Event"),
-                     alt.Tooltip("label:N", title="Type"),
-                     alt.Tooltip("pp:Q", title="This event (pp)", format="+.2f"),
-                     alt.Tooltip("cumulative_pp:Q", title="Running (pp)",
-                                 format="+.2f")])
-        line = base.mark_line(strokeWidth=2, point=True, color="#1c1c1c",
-                              interpolate="step-after").encode(
-            y=alt.Y("cumulative_pp:Q", title=None))
-        st.altair_chart((bars + line).properties(height=260).resolve_scale(
-            y="shared").interactive(), use_container_width=True)
-        st.markdown('<p class="quiet">Bars are each investment or rebalance\'s '
-                    'price difference; the black line is the running total. '
-                    'Points exist only where you traded — there is no implied '
-                    'daily history.</p>', unsafe_allow_html=True)
+            x=alt.X("date:T", title=None, axis=alt.Axis(grid=False)),
+            y=alt.Y("cumulative_pp:Q", title="percentage points",
+                    axis=alt.Axis(grid=True, gridColor="#f0efe9")))
+        line = base.mark_line(strokeWidth=2, color="#1c1c1c",
+                              interpolate="step-after")
+        dots = base.mark_point(size=95, filled=True, color=GREEN,
+                               opacity=1).encode(tooltip=tips)
+        st.altair_chart((line + dots).properties(height=280).interactive(),
+                        use_container_width=True)
+        st.markdown('<p class="quiet">This line follows the Price differences '
+                    'row only, not the whole gap. It steps up or down every '
+                    'time you invested or rebalanced, by how much better or '
+                    'worse your prices were than the model\'s that day.</p>',
+                    unsafe_allow_html=True)
 
 # ------------------------------------------------------------------ page 3 --
 with p3:
