@@ -384,7 +384,7 @@ with p2:
                         + ('…' if len(fetch_failed) > 6 else '')
                         + '. Legs on those dates are excluded and shown in the '
                           'unreconciled line.</p>', unsafe_allow_html=True)
-        st.markdown("### Which stocks moved the gap")
+        st.markdown("### Which stocks drove the price difference")
         bs = out["implementation"]["by_stock"].copy()
         bs["pp"] = 100.0 * bs["implementation_price_effect"] / g["denominator"]
         bs["abs"] = bs["pp"].abs()
@@ -401,7 +401,7 @@ with p2:
                 st.dataframe(_tbl(bs.iloc[5:]), hide_index=True,
                              use_container_width=True)
 
-        st.markdown("### When the gap opened up")
+        st.markdown("### Price difference over your trades")
         ev = gap.by_event(res, out)
         ev["Date"] = ev["date"].dt.strftime("%d %b %Y")
         tips = [alt.Tooltip("Date:N", title="Date"),
