@@ -4,6 +4,7 @@ UI and information architecture only. Every figure comes from the
 deterministic engine in smallcase_attribution/; the question box explains
 those figures and calculates nothing.
 """
+import hashlib
 import json
 import os
 import tempfile
@@ -16,7 +17,7 @@ import requests
 import streamlit as st
 
 from smallcase_attribution import run, Config
-from smallcase_attribution import price_data as PD, v2, nse
+from smallcase_attribution import price_data as PD, gap, nse
 
 st.set_page_config(page_title="Model vs you", page_icon="◐", layout="centered")
 st.markdown("""
@@ -104,7 +105,7 @@ def fetch_prices_for(_need, key):
 def attribution_for(res, cfg, prices_df):
     if prices_df is None or not len(prices_df):
         return None
-    return v2.run_gap_decomposition(res, PD.PriceStore(prices_df), cfg)
+    return gap.build(res, PD.PriceStore(prices_df), cfg)
 
 
 def _read(upload):
@@ -243,7 +244,16 @@ if st.session_state.job is None:
         st.session_state.job = dict(blobs=dict(
             timeline=_read(f_tl), tradebook=_read(f_tb), pnl=_read(f_pl),
             dividends=_read(f_dv), prices=_read(f_px)), sub=sub, demo=False,
-            key=f"user-{f_tb.name}-{f_tb.size}")
+            key=None)
+        # cache key = digest of the actual bytes. st.cache_resource is shared
+        # across sessions, so a key built from filename and size could collide
+        # between two different users.
+        h = hashlib.sha256()
+        for k in sorted(st.session_state.job["blobs"]):
+            _, data = st.session_state.job["blobs"][k]
+            h.update(k.encode())
+            h.update(data or b"")
+        st.session_state.job["key"] = h.hexdigest()
         st.rerun()
     if demo:
         st.session_state.job = dict(blobs=dict(
@@ -279,7 +289,7 @@ else:
         price_source = "fetched"
 out = attribution_for(res, cfg, prices_df)
 
-g = v2.gap_reconciliation(res, out)
+g = gap.reconciliation(res, out)
 imp = res["implementation"]
 
 st.title("Model vs you")
@@ -308,6 +318,12 @@ with p1:
                 f'return. Strategy index over the same window: '
                 f'{g["strategy_index_pct"]:+.2f}%.</p>', unsafe_allow_html=True)
     st.markdown("---")
+    _costs = float(res["cost_summary"]["smallcase"].sum())
+    st.markdown(
+        f'<p class="ctx">Both returns above are before costs. After the '
+        f'{_rs(_costs)} you paid in charges, fees and subscription, you kept '
+        f'<b>{g["net_return_pct"]:+.2f}%</b> ({_rs(g["net_value_rs"])}).</p>',
+        unsafe_allow_html=True)
     st.markdown(
         f'<p class="ctx">{_rs(imp["money_put_in"])} put in · '
         f'{_rs(imp["current_investment"])} currently invested · '
@@ -367,31 +383,26 @@ with p2:
                         + '. Legs on those dates are excluded and shown in the '
                           'unreconciled line.</p>', unsafe_allow_html=True)
         st.markdown("### Which stocks moved the gap")
-        bs = out["implementation"]["by_stock"].copy()
-        bs["pp"] = 100.0 * bs["implementation_price_effect"] / g["denominator"]
-        bs["abs"] = bs["pp"].abs()
-        bs = bs.sort_values("abs", ascending=False)
-        top = bs.head(5)
-        st.dataframe(pd.DataFrame({
-            "Stock": top["symbol"],
-            "Contribution": top["pp"].map(_pp),
-            "₹": top["implementation_price_effect"].map(lambda v: _rs(v))}),
-            hide_index=True, use_container_width=True)
+        st.markdown('<p class="quiet">Each stock\'s share of the prices-and-'
+                    'quantities step: what your book made on it, minus what the '
+                    'model book would have.</p>', unsafe_allow_html=True)
+        bs = gap.by_stock(res, out)
+        def _tbl(d):
+            return pd.DataFrame({"Stock": d["symbol"],
+                                 "Contribution": d["pp"].map(_pp),
+                                 "₹": d["rupees"].map(lambda v: _rs(v))})
+        st.dataframe(_tbl(bs.head(5)), hide_index=True, use_container_width=True)
         if len(bs) > 5:
             with st.expander(f"The other {len(bs)-5} stocks"):
-                rest = bs.iloc[5:]
-                st.dataframe(pd.DataFrame({
-                    "Stock": rest["symbol"],
-                    "Contribution": rest["pp"].map(_pp),
-                    "₹": rest["implementation_price_effect"].map(lambda v: _rs(v))}),
-                    hide_index=True, use_container_width=True)
+                st.dataframe(_tbl(bs.iloc[5:]), hide_index=True,
+                             use_container_width=True)
 
         st.markdown("### When the gap opened up")
-        ev = v2.event_gap_series(res, out)
+        ev = gap.by_event(res, out)
         base = alt.Chart(ev).encode(
             x=alt.X("date:T", title=None, axis=alt.Axis(grid=False)))
         bars = base.mark_bar(size=16, opacity=.45).encode(
-            y=alt.Y("pp:Q", title="percentage points",
+            y=alt.Y("pp:Q", title="percentage points of your total invested",
                     axis=alt.Axis(grid=True, gridColor="#f0efe9")),
             color=alt.condition(alt.datum.pp >= 0, alt.value(GREEN), alt.value(RED)),
             tooltip=[alt.Tooltip("date:T", title="Event"),
@@ -404,10 +415,16 @@ with p2:
             y=alt.Y("cumulative_pp:Q", title=None))
         st.altair_chart((bars + line).properties(height=260).resolve_scale(
             y="shared").interactive(), use_container_width=True)
-        st.markdown('<p class="quiet">Bars are each investment or rebalance\'s '
-                    'price difference; the black line is the running total. '
-                    'Points exist only where you traded — there is no implied '
-                    'daily history.</p>', unsafe_allow_html=True)
+        _txn = float(out["implementation"]["summary"].set_index("measure")
+                     ["amount"]["Implementation price effect - TOTAL"])
+        st.markdown(
+            '<p class="quiet">One bar per investment or rebalance: how much '
+            'better or worse your fills were than the model\'s reference price '
+            'that day, as a share of everything you put in. The black line adds '
+            'them up. There are no points between events because you did not '
+            f'trade between them. Measured at the prices you traded, these come '
+            f'to {_rs(_txn)}; the table above shows what that is worth today '
+            'after the market moved.</p>', unsafe_allow_html=True)
 
 # ------------------------------------------------------------------ page 3 --
 with p3:
