@@ -167,17 +167,17 @@ def reconciliation(analysis: dict, out: dict | None) -> dict:
                  note="your fills against the price the model transacted at"),
             dict(item="Quantity differences", rupees=qty,
                  note="shares you held against the model's quantities"),
-            dict(item="Market moves since you traded",
+            dict(item="Price movement after your trades",
                  rupees=(apnl - mb) - price - qty,
-                 note="the two lines above are measured at transaction prices; "
-                      "this is what the market did to them afterwards"),
-            dict(item="Broker vs exchange closing price",
+                 note="how the price movements after your trades affected the "
+                      "difference between your implementation and the model"),
+            dict(item="Valuation-price difference",
                  rupees=b_rs - div - apnl,
-                 note="your statement and the exchange archive disagree on the "
-                      "valuation-day close"),
-            dict(item="Whole shares instead of index units", rupees=mb - a2,
-                 note="the index holds fractional units; a real portfolio buys "
-                      "whole shares and leaves small cash residuals"),
+                 note="difference between the closing prices in your broker "
+                      "statement and the exchange prices used for the analysis"),
+            dict(item="Whole-share rounding", rupees=mb - a2,
+                 note="the model can represent fractional exposure; your actual "
+                      "portfolio uses whole shares"),
         ]
     known = sum(r["rupees"] for r in rows if np.isfinite(r["rupees"]))
     left = gap_rs - known
