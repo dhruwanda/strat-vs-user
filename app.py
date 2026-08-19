@@ -383,14 +383,16 @@ with p2:
                         + '. Legs on those dates are excluded and shown in the '
                           'unreconciled line.</p>', unsafe_allow_html=True)
         st.markdown("### Which stocks moved the gap")
-        st.markdown('<p class="quiet">Each stock\'s share of the prices-and-'
-                    'quantities step: what your book made on it, minus what the '
-                    'model book would have.</p>', unsafe_allow_html=True)
-        bs = gap.by_stock(res, out)
+        bs = out["implementation"]["by_stock"].copy()
+        bs["pp"] = 100.0 * bs["implementation_price_effect"] / g["denominator"]
+        bs["abs"] = bs["pp"].abs()
+        bs = bs.sort_values("abs", ascending=False)
+
         def _tbl(d):
-            return pd.DataFrame({"Stock": d["symbol"],
-                                 "Contribution": d["pp"].map(_pp),
-                                 "₹": d["rupees"].map(lambda v: _rs(v))})
+            return pd.DataFrame({
+                "Stock": d["symbol"],
+                "Contribution": d["pp"].map(_pp),
+                "₹": d["implementation_price_effect"].map(lambda v: _rs(v))})
         st.dataframe(_tbl(bs.head(5)), hide_index=True, use_container_width=True)
         if len(bs) > 5:
             with st.expander(f"The other {len(bs)-5} stocks"):
@@ -402,7 +404,7 @@ with p2:
         base = alt.Chart(ev).encode(
             x=alt.X("date:T", title=None, axis=alt.Axis(grid=False)))
         bars = base.mark_bar(size=16, opacity=.45).encode(
-            y=alt.Y("pp:Q", title="percentage points of your total invested",
+            y=alt.Y("pp:Q", title="percentage points",
                     axis=alt.Axis(grid=True, gridColor="#f0efe9")),
             color=alt.condition(alt.datum.pp >= 0, alt.value(GREEN), alt.value(RED)),
             tooltip=[alt.Tooltip("date:T", title="Event"),
@@ -415,16 +417,10 @@ with p2:
             y=alt.Y("cumulative_pp:Q", title=None))
         st.altair_chart((bars + line).properties(height=260).resolve_scale(
             y="shared").interactive(), use_container_width=True)
-        _txn = float(out["implementation"]["summary"].set_index("measure")
-                     ["amount"]["Implementation price effect - TOTAL"])
-        st.markdown(
-            '<p class="quiet">One bar per investment or rebalance: how much '
-            'better or worse your fills were than the model\'s reference price '
-            'that day, as a share of everything you put in. The black line adds '
-            'them up. There are no points between events because you did not '
-            f'trade between them. Measured at the prices you traded, these come '
-            f'to {_rs(_txn)}; the table above shows what that is worth today '
-            'after the market moved.</p>', unsafe_allow_html=True)
+        st.markdown('<p class="quiet">Bars are each investment or rebalance\'s '
+                    'price difference; the black line is the running total. '
+                    'Points exist only where you traded — there is no implied '
+                    'daily history.</p>', unsafe_allow_html=True)
 
 # ------------------------------------------------------------------ page 3 --
 with p3:
