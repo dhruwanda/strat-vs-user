@@ -5,7 +5,7 @@ answer to "how did the strategy perform, how did MY implementation perform,
 and why do they differ" — plus a question box that explains the computed
 numbers and calculates nothing itself.
 
-**Live app:** _(paste your streamlit.app URL here once deployed)_
+**Live app:** _(https://strat-vs-user.streamlit.app/)_
 
 ## What it does
 
