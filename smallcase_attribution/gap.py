@@ -203,15 +203,21 @@ def by_event(analysis: dict, out: dict) -> pd.DataFrame:
 
     Event-level only: no daily price history, no implied daily portfolio value.
     """
-    ev = analysis["event_summary"][["event_id", "date", "kind"]]
+    ev = analysis["event_summary"][["event_id", "date", "kind", "lag_days"]]
     by = out["implementation"]["by_event"][
         ["event_id", "implementation_price_effect"]]
-    d = ev.merge(by, on="event_id", how="left").fillna({"implementation_price_effect": 0.0})
+    d = ev.merge(by, on="event_id", how="left").fillna(
+        {"implementation_price_effect": 0.0})
     denom = analysis["implementation"]["money_put_in"]
     d["pp"] = 100.0 * d["implementation_price_effect"] / denom
     d["cumulative_pp"] = d["pp"].cumsum()
-    d["label"] = d["kind"].str.replace("rebalance", "Rebalance").str.replace(
-        "invest", "Investment")
+    d["label"] = d["kind"].map({"rebalance": "Rebalance", "invest": "Investment",
+                                "exit": "Exit"}).fillna(d["kind"])
+    d["applied"] = [
+        ("same day as the model" if (k == "rebalance" and (l == 0))
+         else f"{int(l)} days after the model date"
+         if (k == "rebalance" and pd.notna(l)) else "your own investment")
+        for k, l in zip(d["kind"], d["lag_days"])]
     return d
 
 
