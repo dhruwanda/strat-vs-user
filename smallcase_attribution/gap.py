@@ -135,21 +135,12 @@ def _actual_pnl_by_symbol(sc_trades, p_term) -> pd.Series:
 def reconciliation(analysis: dict, out: dict | None) -> dict:
     """
     Bridge the model-on-your-cash-flows return (Layer A') to your actual
-    return (Layer B), in rupees and percentage points, with every step named.
+    return (Layer B), in rupees and percentage points.
 
-    A'  strategy index applied to your cash flows
-      + whole shares instead of index units   (the index holds fractional units;
-        a real portfolio buys whole shares and carries small cash residuals)
-      = the reconstructed model share book
-      + your prices and quantities vs the model
-      = your pre-cost P&L at exchange closing prices
-      + the broker's closing prices vs the exchange's
-      + dividends                              (the index is price-return)
-      = B  your total return
-
-    Every term comes from an existing engine output; the arithmetic is
-    differencing them and dividing by money put in. The steps sum to the gap
-    exactly, so no unexplained remainder is carried unless a price is missing.
+    The first three lines are the leg-level attribution, measured at the prices
+    you traded. The remaining lines are the three reasons that measurement does
+    not equal the gap on its own, each named and quantified, so the rows sum to
+    the gap exactly instead of leaving an unexplained remainder.
     """
     layers = analysis["layers"].set_index("layer")
     a_dash = layers.loc["A'. Strategy, cash-flow matched"]
@@ -163,30 +154,31 @@ def reconciliation(analysis: dict, out: dict | None) -> dict:
     gap_rs = b_rs - a2
     div = float(analysis["implementation"].get("dividends") or 0.0)
 
+    rows = [dict(item="Dividends you received", rupees=div,
+                 note="the strategy index is price-return, so it excludes them")]
     if out is not None and np.isfinite(out["model"]["pnl_total"]):
+        s_ = out["implementation"]["summary"].set_index("measure")["amount"]
+        price = float(s_["Implementation price effect - TOTAL"])
+        qty = float(s_["Quantity cash component - TOTAL"])
         mb = float(out["model"]["pnl_total"])
         apnl = float(out["actual_pnl_same_closes"])
-        s = out["implementation"]["summary"].set_index("measure")["amount"]
-        txn_price = float(s["Implementation price effect - TOTAL"])
-        rows = [
-            dict(item="Your prices and quantities vs the model",
-                 rupees=apnl - mb,
-                 note=f"{txn_price:,.0f} measured at the prices you traded; "
-                      "this is what that is worth today"),
-            dict(item="Dividends you received", rupees=div,
-                 note="the strategy index is price-return, so it excludes them"),
-            dict(item="The broker's closing prices vs the exchange's",
+        rows += [
+            dict(item="Price differences", rupees=price,
+                 note="your fills against the price the model transacted at"),
+            dict(item="Quantity differences", rupees=qty,
+                 note="shares you held against the model's quantities"),
+            dict(item="Market moves since you traded",
+                 rupees=(apnl - mb) - price - qty,
+                 note="the two lines above are measured at transaction prices; "
+                      "this is what the market did to them afterwards"),
+            dict(item="Broker vs exchange closing price",
                  rupees=b_rs - div - apnl,
-                 note="your statement and the exchange archive disagree "
-                      "slightly on the valuation-day close"),
+                 note="your statement and the exchange archive disagree on the "
+                      "valuation-day close"),
             dict(item="Whole shares instead of index units", rupees=mb - a2,
                  note="the index holds fractional units; a real portfolio buys "
-                      "whole shares and carries small cash residuals"),
+                      "whole shares and leaves small cash residuals"),
         ]
-    else:
-        rows = [dict(item="Dividends you received", rupees=div,
-                     note="the strategy index is price-return, so it excludes "
-                          "them")]
     known = sum(r["rupees"] for r in rows if np.isfinite(r["rupees"]))
     left = gap_rs - known
     if abs(left) > max(1.0, 0.0005 * abs(gap_rs)):
@@ -194,8 +186,6 @@ def reconciliation(analysis: dict, out: dict | None) -> dict:
                          note="legs the price data could not cover"))
     contrib = pd.DataFrame(rows)
     contrib["pp"] = contrib["rupees"].map(pp)
-    contrib = contrib.reindex(contrib["rupees"].abs().sort_values(
-        ascending=False).index).reset_index(drop=True)
 
     return dict(
         model_return_pct=float(a_dash["return_pct"]) * 100,
@@ -206,21 +196,6 @@ def reconciliation(analysis: dict, out: dict | None) -> dict:
         gap_rs=gap_rs, gap_pp=pp(gap_rs),
         strategy_index_pct=float(layers.loc["A. Strategy", "return_pct"]) * 100,
         contributors=contrib, denominator=denom)
-
-
-def by_stock(analysis: dict, out: dict) -> pd.DataFrame:
-    """Per-symbol share of the 'your prices and quantities' step: the actual
-    book's P&L minus the model share book's, on the same closing prices."""
-    if out is None or not len(out["model"]["pnl_by_symbol"]):
-        return pd.DataFrame()
-    m = out["model"]["pnl_by_symbol"].set_index("symbol")["pnl"]
-    a = out["actual_pnl_by_symbol"]
-    d = (a.subtract(m, fill_value=0.0).rename("rupees").reset_index()
-         .rename(columns={"index": "symbol"}))
-    denom = analysis["implementation"]["money_put_in"]
-    d["pp"] = 100.0 * d["rupees"] / denom
-    return d.reindex(d["rupees"].abs().sort_values(ascending=False).index
-                     ).reset_index(drop=True)
 
 
 def by_event(analysis: dict, out: dict) -> pd.DataFrame:
