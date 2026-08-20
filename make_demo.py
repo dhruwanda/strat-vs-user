@@ -1,7 +1,7 @@
 """Generate the fictional demo dataset.
 
 The story (kept deliberately simple, all weights 25% always):
-  Jan 15  first investment, Rs 1,00,000 across Albus, Bellatrix, Cedery, Draco
+  Jan 15  first investment, Rs 1,00,000 across Albus, Bellatrix, Cedric, Draco
   Feb     rebalance: Draco out, Dobby in       (investor applies 2 days late)
   Mar     rebalance: Albus out, Aragog in      (2 days late)
   Mar 10  invest-more, another Rs 1,00,000
@@ -20,15 +20,15 @@ import openpyxl
 rng = np.random.default_rng(11)
 OUT = "demo_data"
 
-SYMS = ["ALBUS", "BELLATRIX", "CEDERY", "DRACO", "DOBBY", "ARAGOG", "BUCKBEAK"]
+SYMS = ["ALBUS", "BELLATRIX", "CEDRIC", "DRACO", "DOBBY", "ARAGOG", "BUCKBEAK"]
 NAMES = {"ALBUS": "Albus Industries Ltd", "BELLATRIX": "Bellatrix Power Ltd",
-         "CEDERY": "Cedery Pharma Ltd", "DRACO": "Draco Metals Ltd",
+         "CEDRIC": "Cedric Pharma Ltd", "DRACO": "Draco Metals Ltd",
          "DOBBY": "Dobby Logistics Ltd", "ARAGOG": "Aragog Textiles Ltd",
          "BUCKBEAK": "Buckbeak Aviation Ltd"}
-P0 = {"ALBUS": 520.0, "BELLATRIX": 145.0, "CEDERY": 880.0, "DRACO": 62.0,
+P0 = {"ALBUS": 520.0, "BELLATRIX": 145.0, "CEDRIC": 880.0, "DRACO": 62.0,
       "DOBBY": 240.0, "ARAGOG": 410.0, "BUCKBEAK": 96.0}
 # mostly positive drift; the names that get dropped are the laggards
-DRIFT = {"ALBUS": -.0002, "BELLATRIX": .0002, "CEDERY": .0016, "DRACO": -.0018,
+DRIFT = {"ALBUS": -.0002, "BELLATRIX": .0002, "CEDRIC": .0016, "DRACO": -.0018,
          "DOBBY": .0018, "ARAGOG": .0022, "BUCKBEAK": .0014}
 
 cal = pd.bdate_range("2026-01-02", "2026-06-30")
@@ -51,10 +51,10 @@ def next_td(d):
     return cal[cal > d][0]
 
 W = 0.25
-V1 = ("2026-01-02 to 2026-02-01", ["ALBUS", "BELLATRIX", "CEDERY", "DRACO"])
-V2 = ("2026-02-02 to 2026-03-01", ["ALBUS", "BELLATRIX", "CEDERY", "DOBBY"])
-V3 = ("2026-03-02 to 2026-04-05", ["BELLATRIX", "CEDERY", "DOBBY", "ARAGOG"])
-V4 = ("2026-04-06 to 2026-06-30", ["CEDERY", "DOBBY", "ARAGOG", "BUCKBEAK"])
+V1 = ("2026-01-02 to 2026-02-01", ["ALBUS", "BELLATRIX", "CEDRIC", "DRACO"])
+V2 = ("2026-02-02 to 2026-03-01", ["ALBUS", "BELLATRIX", "CEDRIC", "DOBBY"])
+V3 = ("2026-03-02 to 2026-04-05", ["BELLATRIX", "CEDRIC", "DOBBY", "ARAGOG"])
+V4 = ("2026-04-06 to 2026-06-30", ["CEDRIC", "DOBBY", "ARAGOG", "BUCKBEAK"])
 FLAGS = [pd.Timestamp(x) for x in
          ("2026-01-02", "2026-02-02", "2026-03-02", "2026-04-06")]
 
@@ -198,8 +198,8 @@ for (s, dd), _ in tb[tb.trade_type == "sell"].groupby(["symbol", "trade_date"]):
 wb.save(f"{OUT}/pnl.xlsx")
 
 pd.DataFrame([
-    {"Symbol": "CEDERY", "Ex-date": "2026-04-20", "Qty": int(hold["CEDERY"]),
-     "Dividend per share": 11.0, "Total dividend": 11.0 * int(hold["CEDERY"])},
+    {"Symbol": "CEDRIC", "Ex-date": "2026-04-20", "Qty": int(hold["CEDRIC"]),
+     "Dividend per share": 11.0, "Total dividend": 11.0 * int(hold["CEDRIC"])},
     {"Symbol": "DOBBY", "Ex-date": "2026-05-15", "Qty": int(hold["DOBBY"]),
      "Dividend per share": 3.0, "Total dividend": 3.0 * int(hold["DOBBY"])},
     {"Symbol": "NIMBUS", "Ex-date": "2026-05-20", "Qty": 40,

@@ -32,7 +32,7 @@ The fictional strategy enters the smallcase **Gringotts Growth** with four equal
 - **Mar 10:** Add another **₹1 lakh**
 
 It subsequently rebalances three times:
-- **Jan 15:** **BUY** Albus, Bellatrix, Cedery, Draco
+- **Jan 15:** **BUY** Albus, Bellatrix, Cedric, Draco
 - **Feb 2:** **SELL** Draco → **BUY** Dobby
 - **Mar 2:** **SELL** Albus → **BUY** Aragog
 - **Apr 6:** **SELL** Bellatrix → **BUY** Buckbeak
