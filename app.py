@@ -239,7 +239,10 @@ if st.session_state.job is None:
     demo = b2.button("Explore the demo")
     st.markdown('<p class="quiet">Your files are processed for this session and '
                 'aren\'t stored as portfolio records. The demo runs on a '
-                'fictional smallcase.</p>', unsafe_allow_html=True)
+                'fictional smallcase. '
+                '<a href="https://github.com/dhruwanda/strat-vs-user#readme" '
+                'target="_blank" rel="noopener">How it works</a></p>', unsafe_allow_html=True)
+  
     if go:
         st.session_state.job = dict(blobs=dict(
             timeline=_read(f_tl), tradebook=_read(f_tb), pnl=_read(f_pl),
