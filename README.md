@@ -4,7 +4,7 @@ A smallcase can have a strong strategy, but your actual return can still be diff
 
 **Live app:** https://strat-vs-user.streamlit.app/
 
-**Full writeup:** [Scope and Methodology (PDF)](https://dhruwanda.github.io/assets/pdf/smallcase_report_00.pdf)
+**Full writeup:** Scope and Methodology ([PDF](https://dhruwanda.github.io/assets/pdf/smallcase_report_00.pdf))
 
 ## What it does
 
