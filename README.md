@@ -3,6 +3,7 @@
 A smallcase can have a strong strategy, but your actual return can still be different depending on when and how you implement it. **The strategy vs you** reconstructs what the smallcase would have done with your actual investments and rebalances, compares that with your real trades, and explains the difference. It also decomposes the performance over trades/ rebalancing event/ individual constituents, currently in the portfolio or held in past. Besides the LLM-powered explainability layer, this tool provides a unified view of performance data that is otherwise fragmented across multiple sources.
 
 **Live app:** https://strat-vs-user.streamlit.app/
+**Full writeup:** [Scope and Methodology (PDF)](https://dhruwanda.github.io/assets/pdf/smallcase_report_00.pdf)
 
 ## What it does
 
