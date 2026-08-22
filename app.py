@@ -191,7 +191,7 @@ def ask_gemini(question, ctx, history):
     if not key:
         return ("This box needs a Gemini API key in the app's secrets as "
                 "GEMINI_API_KEY. Everything else on the page works without it.")
-    model = _secret("GEMINI_MODEL", "gemini-2.5-flash")
+    model = _secret("GEMINI_MODEL", "gemini-3.6-flash")
     contents = [{"role": "user" if r == "user" else "model", "parts": [{"text": t}]}
                 for r, t in history[-6:]]
     contents.append({"role": "user", "parts": [{"text": question}]})
