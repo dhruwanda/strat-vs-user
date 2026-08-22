@@ -198,16 +198,30 @@ def ask_gemini(question, ctx, history):
     try:
         r = requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={key}",
+            f"{model}:generateContent",
+            headers={"x-goog-api-key": key,
+                     "Content-Type": "application/json"},
             json={"system_instruction": {"parts": [{
                       "text": SYSTEM + "\n\nFACTS:\n" + json.dumps(ctx)}]},
                   "contents": contents,
-                  "generationConfig": {"temperature": .2, "maxOutputTokens": 800}},
+                  "generationConfig": {"temperature": .2,
+                                       "maxOutputTokens": 2000}},
             timeout=60)
-        r.raise_for_status()
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        if r.status_code != 200:
+            try:
+                detail = r.json()["error"]["message"]
+            except Exception:  # noqa: BLE001
+                detail = r.text[:300]
+            return f"Gemini returned {r.status_code}. {detail}"
+        cands = r.json().get("candidates") or []
+        if not cands:
+            return "Gemini returned no answer (the request may have been blocked)."
+        parts = cands[0].get("content", {}).get("parts") or []
+        text = "".join(p.get("text", "") for p in parts).strip()
+        return text or ("Gemini returned an empty answer "
+                        f"(finishReason: {cands[0].get('finishReason')}).")
     except Exception as ex:  # noqa: BLE001
-        return f"Could not reach the model ({type(ex).__name__}). Try again."
+        return f"Could not reach the model ({type(ex).__name__}: {ex})."
 
 
 # ------------------------------------------------------------------ landing --
